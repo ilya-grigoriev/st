@@ -18,8 +18,7 @@ static int borderpx = 2;
  */
 static char *shell = "/bin/sh";
 char *utmp = NULL;
-/* scroll program: to enable use a string like "scroll" */
-char *scroll = "scroll";
+char *scroll = NULL;
 char *stty_args = "stty raw pass8 nl -echo -iexten -cstopb 38400";
 
 /* identification sequence returned in DA and DECID */
@@ -223,8 +222,7 @@ static Shortcut shortcuts[] = {
 
 	{ MODKEY,               XK_l,           copyurl,        {.i =  0} },
 
-    { MODKEY,               XK_o,           opencopied,     {.v = "xdg-open"} },
-
+	{ MODKEY,               XK_o,           opencopied,     {.v = "xdg-open"} },
 };
 
 /*
