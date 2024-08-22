@@ -5,7 +5,7 @@
  *
  * font: see http://freedesktop.org/software/fontconfig/fontconfig-user.html
  */
-static char *font = "Iosevka Semibold:pixelsize=21:autohint=true";
+static char *font = "Iosevka Medium:pixelsize=22:autohint=true";
 static int borderpx = 2;
 
 /*
@@ -148,11 +148,24 @@ static unsigned int defaultrcs = 257;
 static unsigned int cursorshape = 2;
 
 /*
+ * Whether to use pixel geometry or cell geometry
+ */
+
+static Geometry geometry = CellGeometry;
+
+/*
  * Default columns and rows numbers
  */
 
 static unsigned int cols = 80;
 static unsigned int rows = 24;
+
+/*
+ * Default width and height (including borders!)
+ */
+
+static unsigned int width = 564;
+static unsigned int height = 364;
 
 /*
  * Default colour and shape of the mouse cursor
@@ -205,9 +218,10 @@ static Shortcut shortcuts[] = {
 	{ TERMMOD,              XK_Y,           selpaste,       {.i =  0} },
 	{ ShiftMask,            XK_Insert,      selpaste,       {.i =  0} },
 	{ TERMMOD,              XK_Num_Lock,    numlock,        {.i =  0} },
-	{ MODKEY,            	XK_Down, 		chgalpha,       {.f = -1} }, /* Decrease opacity */
-	{ MODKEY,	    		XK_Up,		  	chgalpha,       {.f = +1} }, /* Increase opacity */
+	{ MODKEY,            	XK_Down, 	chgalpha,       {.f = -1} }, /* Decrease opacity */
+	{ MODKEY,    		XK_Up,  	chgalpha,       {.f = +1} }, /* Increase opacity */
 	{ MODKEY,               XK_l,           copyurl,        {.i =  0} },
+	{ MODKEY|ShiftMask,     XK_L,           copyurl,        {.i =  1} },
 	{ MODKEY,               XK_o,           opencopied,     {.v = "xdg-open"} },
 };
 
