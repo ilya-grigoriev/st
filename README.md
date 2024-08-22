@@ -28,7 +28,14 @@ the st terminfo entry with the following command:
 
 See the man page for additional details.
 
+Patches
+-------
+- [anygeometry](https://st.suckless.org/patches/anygeometry/)
+- [changealpha](https://st.suckless.org/patches/changealpha/)
+- [copyurl](https://st.suckless.org/patches/copyurl/)
+- [glyph wide support](https://st.suckless.org/patches/glyph_wide_support/)
+- [open_copied_url](https://st.suckless.org/patches/open_copied_url/)
+
 Credits
 -------
 Based on Aurélien APTEL <aurelien dot aptel at gmail dot com> bt source code.
-
