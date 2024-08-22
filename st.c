@@ -152,6 +152,11 @@ typedef struct {
 	int narg;              /* nb of args */
 } STREscape;
 
+typedef struct {
+	int state;
+	size_t length;
+} URLdfa;
+
 static void execsh(char *, char **);
 static void stty(char **);
 static void sigchld(int);
@@ -201,8 +206,7 @@ static void tdefutf8(char);
 static int32_t tdefcolor(const int *, int *, int);
 static void tdeftran(char);
 static void tstrsequence(uchar);
-static void tsetcolor(int, int, int, uint32_t, uint32_t);
-static char * findlastany(char *, const char**, size_t);
+static int daddch(URLdfa *, char);
 
 static void drawregion(int, int, int, int);
 
@@ -2679,121 +2683,97 @@ redraw(void)
 	draw();
 }
 
-void
-tsetcolor( int row, int start, int end, uint32_t fg, uint32_t bg )
+int
+daddch(URLdfa *dfa, char c)
 {
-	int i = start;
-	for( ; i < end; ++i )
-	{
-		term.line[row][i].fg = fg;
-		term.line[row][i].bg = bg;
-	}
-}
+	/* () and [] can appear in urls, but excluding them here will reduce false
+	 * positives when figuring out where a given url ends.
+	 */
+	static const char URLCHARS[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+		"abcdefghijklmnopqrstuvwxyz"
+		"0123456789-._~:/?#@!$&'*+,;=%";
+	static const char RPFX[] = "//:sptth";
 
-char *
-findlastany(char *str, const char** find, size_t len)
-{
-	char* found = NULL;
-	int i = 0;
-	for(found = str + strlen(str) - 1; found >= str; --found) {
-		for(i = 0; i < len; i++) {
-			if(strncmp(found, find[i], strlen(find[i])) == 0) {
-				return found;
-			}
-		}
+	if (!strchr(URLCHARS, c)) {
+		dfa->length = 0;
+		dfa->state = 0;
+
+		return 0;
 	}
 
-	return NULL;
+	dfa->length++;
+
+	if (dfa->state == 2 && c == '/') {
+		dfa->state = 0;
+	} else if (dfa->state == 3 && c == 'p') {
+		dfa->state++;
+	} else if (c != RPFX[dfa->state]) {
+		dfa->state = 0;
+		return 0;
+	}
+
+	if (dfa->state++ == 7) {
+		dfa->state = 0;
+		return 1;
+	}
+
+	return 0;
 }
 
 /*
 ** Select and copy the previous url on screen (do nothing if there's no url).
-**
-** FIXME: doesn't handle urls that span multiple lines; will need to add support
-**        for multiline "getsel()" first
 */
 void
 copyurl(const Arg *arg) {
-	/* () and [] can appear in urls, but excluding them here will reduce false
-	 * positives when figuring out where a given url ends.
-	 */
-	static char URLCHARS[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-		"abcdefghijklmnopqrstuvwxyz"
-		"0123456789-._~:/?#@!$&'*+,;=%";
-
-	static const char* URLSTRINGS[] = {"http://", "https://"};
-
-	/* remove highlighting from previous selection if any */
-	if(sel.ob.x >= 0 && sel.oe.x >= 0)
-		tsetcolor(sel.nb.y, sel.ob.x, sel.oe.x + 1, defaultfg, defaultbg);
-
-	int i = 0,
-		row = 0, /* row of current URL */
+	int row = 0, /* row of current URL */
 		col = 0, /* column of current URL start */
-		startrow = 0, /* row of last occurrence */
 		colend = 0, /* column of last occurrence */
 		passes = 0; /* how many rows have been scanned */
 
-	char *linestr = calloc(term.col+1, sizeof(Rune));
-	char *c = NULL,
+	const char *c = NULL,
 		 *match = NULL;
+	URLdfa dfa = { 0 };
 
 	row = (sel.ob.x >= 0 && sel.nb.y > 0) ? sel.nb.y : term.bot;
 	LIMIT(row, term.top, term.bot);
-	startrow = row;
 
 	colend = (sel.ob.x >= 0 && sel.nb.y > 0) ? sel.nb.x : term.col;
 	LIMIT(colend, 0, term.col);
 
 	/*
- 	** Scan from (term.bot,term.col) to (0,0) and find
+	** Scan from (term.row - 1,term.col - 1) to (0,0) and find
 	** next occurrance of a URL
 	*/
-	while(passes !=term.bot + 2) {
+	for (passes = 0; passes < term.row; passes++) {
 		/* Read in each column of every row until
- 		** we hit previous occurrence of URL
+		** we hit previous occurrence of URL
 		*/
-		for (col = 0, i = 0; col < colend; ++col,++i) {
-			linestr[i] = term.line[row][col].u;
-		}
-		linestr[term.col] = '\0';
+		for (col = colend; col--;)
+			if (daddch(&dfa, term.line[row][col].u < 128 ? term.line[row][col].u : ' '))
+				break;
 
-		if ((match = findlastany(linestr, URLSTRINGS,
-						sizeof(URLSTRINGS)/sizeof(URLSTRINGS[0]))))
+		if (col >= 0)
 			break;
 
-		if (--row < term.top)
-			row = term.bot;
+        /* .i = 0 --> botton-up
+         * .i = 1 --> top-down
+         */
+        if (!arg->i) {
+            if (--row < 0)
+                row = term.row - 1;
+        } else {
+            if (++row >= term.row)
+                row = 0;
+        }
 
 		colend = term.col;
-		passes++;
-	};
+	}
 
-	if (match) {
-		/* must happen before trim */
-		selclear();
-		sel.ob.x = strlen(linestr) - strlen(match);
-
-		/* trim the rest of the line from the url match */
-		for (c = match; *c != '\0'; ++c)
-			if (!strchr(URLCHARS, *c)) {
-				*c = '\0';
-				break;
-			}
-
-		/* highlight selection by inverting terminal colors */
-		tsetcolor(row, sel.ob.x, sel.ob.x + strlen( match ), defaultbg, defaultfg);
-
-		/* select and copy */
-		sel.mode = 1;
-		sel.type = SEL_REGULAR;
-		sel.oe.x = sel.ob.x + strlen(match)-1;
-		sel.ob.y = sel.oe.y = row;
-		selnormalize();
-		tsetdirt(sel.nb.y, sel.ne.y);
+	if (passes < term.row) {
+		selstart(col, row, 0);
+		selextend((col + dfa.length - 1) % term.col, row + (col + dfa.length - 1) / term.col, SEL_REGULAR, 0);
+		selextend((col + dfa.length - 1) % term.col, row + (col + dfa.length - 1) / term.col, SEL_REGULAR, 1);
 		xsetsel(getsel());
 		xclipcopy();
 	}
-
-	free(linestr);
 }
