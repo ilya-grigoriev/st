@@ -1412,10 +1412,11 @@ xmakeglyphfontspecs(XftGlyphFontSpec *specs, const Glyph *glyphs, int len, int x
 void
 chgalpha(const Arg *arg)
 {
-   if (arg->f == -1.0f && alpha >= 0.1f)
-      alpha -= 0.1f;
-   else if (arg->f == 1.0f && alpha < 1.0f)
-      alpha += 0.1f;
+   /* if (arg->f == -1.0f && alpha >= 0.1f) */
+   if (arg->f < 0.0f && alpha >= 0.1f)
+      alpha -= alpha_dif;
+   else if (arg->f > 0.0f && alpha < 1.0f)
+      alpha += alpha_dif;
    else if (arg->f == 0.0f)
       alpha = alpha_def;
    else
